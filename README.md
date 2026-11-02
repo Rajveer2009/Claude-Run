@@ -19,8 +19,8 @@ higher and higher), milestones, crashing and starting a run, plus a calm looping
 background track that quietens on the game over screen. The two buttons in the
 bottom-right corner of the title, pause and game over screens toggle the music (♫, or
 press `N`) and the sound effects (speaker, or `M`); both choices are remembered. The
-phone's volume buttons control the game volume. All audio is synthesized in code when
-the game starts, so the APK contains no audio files.
+phone's volume buttons control the game volume. The effects are small WAV files; the
+music is synthesized in code when the game starts.
 
 **Full screen:** the game hides the status and navigation bars and draws behind the camera
 notch / punch hole, while keeping the score and token counter clear of it.
@@ -54,9 +54,10 @@ Or just open the folder in Android Studio and press Run.
 - `app/src/main/java/com/claudegame/run/GameView.java` — the whole game: physics,
   spawning, collisions and Canvas rendering (no image assets).
 - `app/src/main/java/com/claudegame/run/MainActivity.java` — fullscreen landscape host.
-- `app/src/main/java/com/claudegame/run/Synth.java` — tiny synthesizer that renders all
-  sound effects and the music loop at startup (no audio files, no third-party audio).
+- `app/src/main/res/raw/sfx_*.wav` — the sound effects (synthesized, no third-party audio).
 - `app/src/main/java/com/claudegame/run/Sfx.java` — plays the effects via SoundPool.
+- `app/src/main/java/com/claudegame/run/Synth.java` — tiny synthesizer that renders the
+  music loop at startup.
 - `app/src/main/java/com/claudegame/run/Music.java` — streams the gapless music loop.
 - `app/src/test/.../GameViewRenderTest.java` — headless Robolectric test that plays the
   game and renders frames to `app/build/renders/` (`./gradlew testDebugUnitTest`).

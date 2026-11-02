@@ -1,13 +1,8 @@
 package com.claudegame.run;
 
-import java.io.File;
-import java.io.FileOutputStream;
-import java.io.IOException;
-
 /**
- * A tiny offline synthesizer. All of the game's audio (sound effects and the music loop)
- * is rendered from sine-based tones and filtered noise at startup, so the app ships with
- * no audio files at all.
+ * A tiny offline synthesizer that renders the background music loop from sine-based
+ * tones and filtered noise at startup. (The sound effects are WAV files in res/raw.)
  */
 final class Synth {
     static final int SR = 22050;
@@ -21,9 +16,6 @@ final class Synth {
 
     // harmonic recipes: {harmonic, amplitude, harmonic, amplitude, ...}
     static final float[] PURE = {1, 1f};
-    static final float[] SOFT = {1, 1f, 2, 0.18f};
-    static final float[] BELL = {1, 1f, 2, 0.25f, 3, 0.08f};
-    static final float[] TRI = {1, 1f, 3, 1 / 9f, 5, 1 / 25f};
     static final float[] PLUCK = {1, 1f, 2, 0.2f, 3, 0.06f};
     static final float[] BASS = {1, 1f, 2, 0.35f, 3, 0.1f};
     static final float[] PAD = {1, 1f, 2, 0.12f};
@@ -79,11 +71,6 @@ final class Synth {
         }
     }
 
-    static void tone(float[] out, double start, double dur, double f0, double f1,
-                     double decay, float[] harm) {
-        tone(out, start, dur, f0, f1, 0.004, decay, 0.01, harm, 0, 1f, false);
-    }
-
     /**
      * Mixes filtered noise into {@code out}. The one-pole low-pass cutoff glides from c0 to
      * c1; with {@code highpass} the low-passed part is removed instead (a crisp tick).
@@ -117,91 +104,6 @@ final class Synth {
         short[] out = new short[x.length];
         for (int i = 0; i < x.length; i++) out[i] = (short) Math.round(x[i] / m * peak * 32767);
         return out;
-    }
-
-    static void writeWav(File file, short[] pcm) throws IOException {
-        int dataLen = pcm.length * 2;
-        byte[] b = new byte[44 + dataLen];
-        putStr(b, 0, "RIFF");
-        putInt(b, 4, 36 + dataLen);
-        putStr(b, 8, "WAVE");
-        putStr(b, 12, "fmt ");
-        putInt(b, 16, 16);
-        putShort(b, 20, 1);          // PCM
-        putShort(b, 22, 1);          // mono
-        putInt(b, 24, SR);
-        putInt(b, 28, SR * 2);       // byte rate
-        putShort(b, 32, 2);          // block align
-        putShort(b, 34, 16);         // bits per sample
-        putStr(b, 36, "data");
-        putInt(b, 40, dataLen);
-        for (int i = 0; i < pcm.length; i++) putShort(b, 44 + i * 2, pcm[i]);
-        try (FileOutputStream fo = new FileOutputStream(file)) {
-            fo.write(b);
-        }
-    }
-
-    private static void putStr(byte[] b, int at, String s) {
-        for (int i = 0; i < 4; i++) b[at + i] = (byte) s.charAt(i);
-    }
-
-    private static void putInt(byte[] b, int at, int v) {
-        b[at] = (byte) v;
-        b[at + 1] = (byte) (v >> 8);
-        b[at + 2] = (byte) (v >> 16);
-        b[at + 3] = (byte) (v >> 24);
-    }
-
-    private static void putShort(byte[] b, int at, int v) {
-        b[at] = (byte) v;
-        b[at + 1] = (byte) (v >> 8);
-    }
-
-    // ------------------------------------------------------------------ effects
-
-    static float[] jump() {
-        float[] s = new float[(int) (0.17 * SR)];
-        tone(s, 0, 0.17, 380, 760, 14, SOFT);
-        return s;
-    }
-
-    static float[] token() {
-        float[] s = new float[(int) (0.38 * SR)];
-        tone(s, 0.0, 0.08, 987.77, 987.77, 20, BELL);
-        tone(s, 0.06, 0.32, 1318.51, 1318.51, 11, BELL);
-        return s;
-    }
-
-    static float[] level() {
-        float[] s = new float[(int) (0.75 * SR)];
-        double[] notes = {523.25, 659.25, 783.99, 1046.50};
-        for (int k = 0; k < notes.length; k++) {
-            tone(s, k * 0.075, 0.75 - k * 0.075, notes[k], notes[k], 6, SOFT);
-        }
-        return s;
-    }
-
-    static float[] crash() {
-        float[] s = new float[(int) (0.75 * SR)];
-        tone(s, 0.0, 0.12, 140, 55, 22, PURE);
-        noise(s, 0.0, 0.08, 1800, 300, 0.6f, 40, 7, false, false);
-        tone(s, 0.10, 0.20, 392.00, 370, 5, TRI);
-        tone(s, 0.30, 0.45, 311.13, 233.08, 0.004, 4, 0.01, TRI, 0.012, 1f, false);
-        return s;
-    }
-
-    static float[] start() {
-        float[] s = new float[(int) (0.22 * SR)];
-        tone(s, 0.0, 0.07, 783.99, 783.99, 18, SOFT);
-        tone(s, 0.06, 0.16, 1174.66, 1174.66, 16, SOFT);
-        return s;
-    }
-
-    static float[] duck() {
-        float[] s = new float[(int) (0.16 * SR)];
-        noise(s, 0.0, 0.16, 3000, 400, 1f, 14, 7, false, false);
-        tone(s, 0.0, 0.12, 500, 260, 20, new float[]{1, 0.3f});
-        return s;
     }
 
     // ------------------------------------------------------------------ music

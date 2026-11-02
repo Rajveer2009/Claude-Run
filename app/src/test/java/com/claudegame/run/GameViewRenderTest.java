@@ -108,17 +108,17 @@ public class GameViewRenderTest {
         step(v, c, 5);
         tap(v, W * 0.8f, MotionEvent.ACTION_DOWN); // start
         tap(v, W * 0.8f, MotionEvent.ACTION_UP);
-        assertTrue("start sound", pool.wasPathPlayed(v.sfx().path(Sfx.START)));
+        assertTrue("start sound", pool.wasResourcePlayed(R.raw.sfx_start));
         step(v, c, 3);
         tap(v, W * 0.8f, MotionEvent.ACTION_DOWN); // jump
         tap(v, W * 0.8f, MotionEvent.ACTION_UP);
-        assertTrue("jump sound", pool.wasPathPlayed(v.sfx().path(Sfx.JUMP)));
+        assertTrue("jump sound", pool.wasResourcePlayed(R.raw.sfx_jump));
         step(v, c, 60);
         tap(v, W * 0.1f, MotionEvent.ACTION_DOWN); // duck
         tap(v, W * 0.1f, MotionEvent.ACTION_UP);
-        assertTrue("duck sound", pool.wasPathPlayed(v.sfx().path(Sfx.DUCK)));
-        for (int i = 0; i < 5000 && !pool.wasPathPlayed(v.sfx().path(Sfx.CRASH)); i++) step(v, c, 1);
-        assertTrue("crash sound", pool.wasPathPlayed(v.sfx().path(Sfx.CRASH)));
+        assertTrue("duck sound", pool.wasResourcePlayed(R.raw.sfx_duck));
+        for (int i = 0; i < 5000 && !pool.wasResourcePlayed(R.raw.sfx_crash); i++) step(v, c, 1);
+        assertTrue("crash sound", pool.wasResourcePlayed(R.raw.sfx_crash));
 
         // 'M' mutes (also available as an on-screen button on menus); nothing plays after that
         v.onKeyDown(KeyEvent.KEYCODE_M, new KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_M));
@@ -127,7 +127,7 @@ public class GameViewRenderTest {
         step(v, c, 60);
         tap(v, W * 0.8f, MotionEvent.ACTION_DOWN); // restart
         tap(v, W * 0.8f, MotionEvent.ACTION_UP);
-        assertFalse("muted", pool.wasPathPlayed(v.sfx().path(Sfx.START)));
+        assertFalse("muted", pool.wasResourcePlayed(R.raw.sfx_start));
     }
 
     @Test
@@ -169,7 +169,21 @@ public class GameViewRenderTest {
         assertTrue("seam " + seam + " vs max step " + maxStep, seam <= maxStep);
         String out = System.getProperty("renderDir", "build/renders");
         new File(out).mkdirs();
-        Synth.writeWav(new File(out, "music_loop.wav"), Synth.toPcm(loop, 0.9f));
+        writeWav(new File(out, "music_loop.wav"), Synth.toPcm(loop, 0.9f));
+    }
+
+    /** Saves 16-bit mono PCM as a WAV so the loop can be listened to / inspected. */
+    private static void writeWav(File file, short[] pcm) throws Exception {
+        java.nio.ByteBuffer b = java.nio.ByteBuffer.allocate(44 + pcm.length * 2)
+                .order(java.nio.ByteOrder.LITTLE_ENDIAN);
+        b.put("RIFF".getBytes()).putInt(36 + pcm.length * 2).put("WAVE".getBytes())
+                .put("fmt ".getBytes()).putInt(16).putShort((short) 1).putShort((short) 1)
+                .putInt(Synth.SR).putInt(Synth.SR * 2).putShort((short) 2).putShort((short) 16)
+                .put("data".getBytes()).putInt(pcm.length * 2);
+        for (short v : pcm) b.putShort(v);
+        try (FileOutputStream fo = new FileOutputStream(file)) {
+            fo.write(b.array());
+        }
     }
 
     private interface Cond {
