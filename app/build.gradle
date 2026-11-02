@@ -1,0 +1,45 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'com.claudegame.run'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId 'com.claudegame.run'
+        minSdk 26
+        targetSdk 34
+        versionCode 1
+        versionName '1.0'
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            // Signed with the debug key so the release APK is installable out of the box.
+            signingConfig signingConfigs.debug
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
+
+android.testOptions.unitTests.includeAndroidResources = true
+
+dependencies {
+    testImplementation 'junit:junit:4.13.2'
+    testImplementation 'org.robolectric:robolectric:4.14.1'
+}
+
+// Optional: point Robolectric at a pre-downloaded android-all jar (offline CI / sandboxes).
+tasks.withType(Test).configureEach {
+    def dir = System.getenv('ROBOLECTRIC_DEPS_DIR')
+    if (dir) {
+        systemProperty 'robolectric.offline', 'true'
+        systemProperty 'robolectric.dependency.dir', dir
+    }
+}

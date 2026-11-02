@@ -1,0 +1,7 @@
+<resources>
+    <style name="Theme.ClaudeRun" parent="android:Theme.Material.Light.NoActionBar.Fullscreen">
+        <item name="android:windowBackground">@color/cream</item>
+        <item name="android:statusBarColor">@color/cream</item>
+        <item name="android:navigationBarColor">@color/cream</item>
+    </style>
+</resources>
