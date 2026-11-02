@@ -51,8 +51,7 @@ Or just open the folder in Android Studio and press Run.
   spawning, collisions and Canvas rendering (no image assets).
 - `app/src/main/java/com/claudegame/run/MainActivity.java` — fullscreen landscape host.
 - `app/src/main/java/com/claudegame/run/Sfx.java` — SoundPool wrapper for the effects.
-- `tools/gen_sounds.py` — synthesizes the effects into `app/src/main/res/raw/`
-  (`python3 tools/gen_sounds.py`); no third-party audio.
+- `app/src/main/res/raw/sfx_*.wav` — the sound effects (synthesized, no third-party audio).
 - `app/src/test/.../GameViewRenderTest.java` — headless Robolectric test that plays the
   game and renders frames to `app/build/renders/` (`./gradlew testDebugUnitTest`).
 
