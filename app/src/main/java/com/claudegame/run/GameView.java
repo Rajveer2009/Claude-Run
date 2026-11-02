@@ -45,6 +45,26 @@ public class GameView extends View {
             "Context window exceeded.",
             "I apologize for the confusion.",
             "Hmm, let me think again.",
+            "You're absolutely right.",
+            "I should have seen that coming.",
+            "Let me try a different approach.",
+            "Error: unexpected bug ahead.",
+            "That didn't go as planned.",
+            "I need a moment to reflect.",
+            "Good catch. That was a bug.",
+            "Rate limited. Please wait.",
+            "My reasoning had a flaw.",
+            "Retrying with more care...",
+            "I'll admit, I didn't see that.",
+            "Stack trace: one small bug.",
+            "Let me step back and rethink.",
+            "Out of tokens, out of luck.",
+            "That was not helpful of me.",
+            "I may have hallucinated a path.",
+            "Ran into an edge case.",
+            "Thanks for your patience.",
+            "Should have read the docs.",
+            "Exception thrown. By me.",
     };
 
     private enum State { READY, RUNNING, PAUSED, OVER }
@@ -420,7 +440,10 @@ public class GameView extends View {
         state = State.OVER;
         overTime = 0;
         jumpHeld = duckHeld = false;
-        oopsLine = OOPS[rnd.nextInt(OOPS.length)];
+        String prev = oopsLine;
+        do {
+            oopsLine = OOPS[rnd.nextInt(OOPS.length)];
+        } while (oopsLine.equals(prev)); // never the same line twice in a row
         float[] c = playerCenter();
         for (int i = 0; i < 26; i++) {
             Particle q = new Particle();
@@ -935,6 +958,8 @@ public class GameView extends View {
                 overlay(c, bg);
                 title.setColor(fg);
                 title.setTextSize(9 * u);
+                float lineW = title.measureText(oopsLine);
+                if (lineW > W * 0.9f) title.setTextSize(9 * u * W * 0.9f / lineW); // fit narrow screens
                 c.drawText(oopsLine, W / 2, 34 * u, title);
                 title.setTextSize(4.5f * u);
                 title.setColor(ORANGE);
