@@ -108,17 +108,17 @@ public class GameViewRenderTest {
         step(v, c, 5);
         tap(v, W * 0.8f, MotionEvent.ACTION_DOWN); // start
         tap(v, W * 0.8f, MotionEvent.ACTION_UP);
-        assertTrue("start sound", pool.wasResourcePlayed(R.raw.sfx_start));
+        assertTrue("start sound", pool.wasPathPlayed(v.sfx().path(Sfx.START)));
         step(v, c, 3);
         tap(v, W * 0.8f, MotionEvent.ACTION_DOWN); // jump
         tap(v, W * 0.8f, MotionEvent.ACTION_UP);
-        assertTrue("jump sound", pool.wasResourcePlayed(R.raw.sfx_jump));
+        assertTrue("jump sound", pool.wasPathPlayed(v.sfx().path(Sfx.JUMP)));
         step(v, c, 60);
         tap(v, W * 0.1f, MotionEvent.ACTION_DOWN); // duck
         tap(v, W * 0.1f, MotionEvent.ACTION_UP);
-        assertTrue("duck sound", pool.wasResourcePlayed(R.raw.sfx_duck));
-        for (int i = 0; i < 5000 && !pool.wasResourcePlayed(R.raw.sfx_crash); i++) step(v, c, 1);
-        assertTrue("crash sound", pool.wasResourcePlayed(R.raw.sfx_crash));
+        assertTrue("duck sound", pool.wasPathPlayed(v.sfx().path(Sfx.DUCK)));
+        for (int i = 0; i < 5000 && !pool.wasPathPlayed(v.sfx().path(Sfx.CRASH)); i++) step(v, c, 1);
+        assertTrue("crash sound", pool.wasPathPlayed(v.sfx().path(Sfx.CRASH)));
 
         // 'M' mutes (also available as an on-screen button on menus); nothing plays after that
         v.onKeyDown(KeyEvent.KEYCODE_M, new KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_M));
@@ -127,7 +127,62 @@ public class GameViewRenderTest {
         step(v, c, 60);
         tap(v, W * 0.8f, MotionEvent.ACTION_DOWN); // restart
         tap(v, W * 0.8f, MotionEvent.ACTION_UP);
-        assertFalse("muted", pool.wasResourcePlayed(R.raw.sfx_start));
+        assertFalse("muted", pool.wasPathPlayed(v.sfx().path(Sfx.START)));
+    }
+
+    @Test
+    public void playsBackgroundMusic() throws Exception {
+        GameView v = newView();
+        Music m = v.music();
+        v.onHostResume(); // what the activity does when it comes to the foreground
+        assertTrue("music starts", waitFor(() -> m.playing && m.framesWritten > Synth.SR, 20000));
+
+        // N toggles music off: it fades out and the track stops
+        v.onKeyDown(KeyEvent.KEYCODE_N, new KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_N));
+        assertFalse(m.isEnabled());
+        assertTrue("music stops", waitFor(() -> !m.playing, 5000));
+        Bitmap bmp = Bitmap.createBitmap(W, H, Bitmap.Config.ARGB_8888);
+        step(v, new Canvas(bmp), 3);
+        String out = System.getProperty("renderDir", "build/renders");
+        new File(out).mkdirs();
+        save(bmp, out + "/8_music_off.png");
+
+        // back on, then the app goes to the background: stops again
+        v.onKeyDown(KeyEvent.KEYCODE_N, new KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_N));
+        assertTrue("music resumes", waitFor(() -> m.playing, 5000));
+        v.onHostPause();
+        assertTrue("paused in background", waitFor(() -> !m.playing, 5000));
+        v.release();
+    }
+
+    @Test
+    public void musicLoopIsSeamless() throws Exception {
+        float[] loop = Synth.musicLoop();
+        double bar = 60.0 / Synth.BPM * 4;
+        assertTrue(Math.abs(loop.length - bar * Synth.BARS * Synth.SR) < 2);
+        float peak = 0;
+        for (float x : loop) peak = Math.max(peak, Math.abs(x));
+        // the jump from the last sample back to the first is no bigger than a normal step
+        float maxStep = 0;
+        for (int i = 1; i < loop.length; i++) maxStep = Math.max(maxStep, Math.abs(loop[i] - loop[i - 1]));
+        float seam = Math.abs(loop[0] - loop[loop.length - 1]);
+        assertTrue("seam " + seam + " vs max step " + maxStep, seam <= maxStep);
+        String out = System.getProperty("renderDir", "build/renders");
+        new File(out).mkdirs();
+        Synth.writeWav(new File(out, "music_loop.wav"), Synth.toPcm(loop, 0.9f));
+    }
+
+    private interface Cond {
+        boolean ok();
+    }
+
+    private static boolean waitFor(Cond c, long ms) throws InterruptedException {
+        long end = System.currentTimeMillis() + ms;
+        while (System.currentTimeMillis() < end) {
+            if (c.ok()) return true;
+            Thread.sleep(20);
+        }
+        return c.ok();
     }
 
     /** A phone with a punch-hole camera on the left edge (landscape): HUD must avoid it. */

@@ -123,6 +123,8 @@ public class GameView extends View {
     /** True while the phone's system-wide dark theme is on. */
     private boolean systemDark;
     private final Sfx sfx;
+    private final Music music;
+    private final RectF musicBtn = new RectF();
     /** Areas covered by a camera notch / punch hole; the HUD and player stay clear of them. */
     private float safeL, safeR, safeT;
     private final RectF muteBtn = new RectF();
@@ -160,6 +162,7 @@ public class GameView extends View {
         systemDark = isDark(context.getResources().getConfiguration());
         nightT = systemDark ? 1f : 0f; // start in the right palette, no fade on launch
         sfx = new Sfx(context, prefs.getBoolean("muted", false));
+        music = new Music(prefs.getBoolean("music", true));
 
         stroke.setStyle(Paint.Style.STROKE);
         stroke.setStrokeCap(Paint.Cap.ROUND);
@@ -204,10 +207,21 @@ public class GameView extends View {
     /** Called by the activity when it is destroyed. */
     void release() {
         sfx.release();
+        music.release();
     }
 
     Sfx sfx() {
         return sfx;
+    }
+
+    Music music() {
+        return music;
+    }
+
+    private void toggleMusic() {
+        music.setEnabled(!music.isEnabled());
+        prefs.edit().putBoolean("music", music.isEnabled()).apply();
+        invalidate();
     }
 
     private void toggleMute() {
@@ -236,6 +250,7 @@ public class GameView extends View {
 
     void onHostPause() {
         hostActive = false;
+        music.stop();
         if (state == State.RUNNING) {
             state = State.PAUSED;
             jumpHeld = duckHeld = false;
@@ -244,6 +259,7 @@ public class GameView extends View {
 
     void onHostResume() {
         hostActive = true;
+        music.start();
         lastFrameNs = 0;
         invalidate();
     }
@@ -265,6 +281,7 @@ public class GameView extends View {
         tokenStreak = 0;
         state = State.RUNNING;
         sfx.play(Sfx.START);
+        music.setDucked(false);
     }
 
     // ================================================================ input
@@ -281,6 +298,10 @@ public class GameView extends View {
                 float x = e.getX(idx);
                 if (state != State.RUNNING && muteBtn.contains(x, e.getY(idx))) {
                     toggleMute();
+                    return true;
+                }
+                if (state != State.RUNNING && musicBtn.contains(x, e.getY(idx))) {
+                    toggleMusic();
                     return true;
                 }
                 if (state == State.READY || state == State.PAUSED) {
@@ -359,6 +380,9 @@ public class GameView extends View {
                 return true;
             case KeyEvent.KEYCODE_M:
                 toggleMute();
+                return true;
+            case KeyEvent.KEYCODE_N:
+                toggleMusic();
                 return true;
         }
         return super.onKeyDown(keyCode, event);
@@ -531,6 +555,7 @@ public class GameView extends View {
         }
         performHapticFeedback(HapticFeedbackConstants.LONG_PRESS);
         sfx.play(Sfx.CRASH);
+        music.setDucked(true); // quieter music on the game over screen
     }
 
     private void showBanner(String s) {
@@ -1001,8 +1026,10 @@ public class GameView extends View {
         // mute toggle, only on menus so it can't be hit by accident mid-run
         if (state != State.RUNNING) {
             drawMuteButton(c, fg, W - padR - 5 * u, groundY + 10 * u);
+            drawMusicButton(c, fg, W - padR - 17 * u, groundY + 10 * u);
         } else {
             muteBtn.setEmpty();
+            musicBtn.setEmpty();
         }
 
         if (banner != null && bannerTime > 0 && state == State.RUNNING) {
@@ -1056,7 +1083,7 @@ public class GameView extends View {
 
     private void drawMuteButton(Canvas c, int fg, float cx, float cy) {
         float r = 4.5f * u;
-        muteBtn.set(cx - r * 1.6f, cy - r * 1.6f, cx + r * 1.6f, cy + r * 1.6f); // generous hit area
+        muteBtn.set(cx - r * 1.3f, cy - r * 1.3f, cx + r * 1.3f, cy + r * 1.3f); // generous hit area
         stroke.setColor(lerpColor(fg, mix(BG), 0.5f));
         stroke.setStrokeWidth(0.4f * u);
         c.drawCircle(cx, cy, r, stroke);
@@ -1083,6 +1110,34 @@ public class GameView extends View {
             c.drawArc(rect, -50, 100, false, stroke);
             rect.set(cx - 1.4f * u, cy - 2.5f * u, cx + 2.6f * u, cy + 2.5f * u);
             c.drawArc(rect, -50, 100, false, stroke);
+        }
+    }
+
+    private void drawMusicButton(Canvas c, int fg, float cx, float cy) {
+        float r = 4.5f * u;
+        musicBtn.set(cx - r * 1.3f, cy - r * 1.3f, cx + r * 1.3f, cy + r * 1.3f);
+        stroke.setColor(lerpColor(fg, mix(BG), 0.5f));
+        stroke.setStrokeWidth(0.4f * u);
+        c.drawCircle(cx, cy, r, stroke);
+        // two beamed eighth notes
+        fill.setColor(fg);
+        stroke.setColor(fg);
+        stroke.setStrokeWidth(0.45f * u);
+        float lx = cx - 1.5f * u, rx = cx + 1.7f * u, by = cy + 1.6f * u, top = cy - 2.3f * u;
+        rect.set(lx - 1.5f * u, by - 0.9f * u, lx + 0.4f * u, by + 0.9f * u);
+        c.drawOval(rect, fill);
+        rect.set(rx - 1.5f * u, by - 1.3f * u, rx + 0.4f * u, by + 0.5f * u);
+        c.drawOval(rect, fill);
+        c.drawLine(lx + 0.2f * u, by, lx + 0.2f * u, top + 0.3f * u, stroke);
+        c.drawLine(rx + 0.2f * u, by - 0.4f * u, rx + 0.2f * u, top - 0.3f * u, stroke);
+        stroke.setStrokeWidth(0.9f * u);
+        stroke.setStrokeCap(Paint.Cap.BUTT);
+        c.drawLine(lx + 0.2f * u, top + 0.6f * u, rx + 0.2f * u, top, stroke);
+        stroke.setStrokeCap(Paint.Cap.ROUND);
+        if (!music.isEnabled()) {
+            // strike-through when the music is off
+            stroke.setStrokeWidth(0.45f * u);
+            c.drawLine(cx - 3.2f * u, cy + 3.2f * u, cx + 3.2f * u, cy - 3.2f * u, stroke);
         }
     }
 
