@@ -2,4 +2,6 @@
     <color name="claude_orange">#D97757</color>
     <color name="cream">#F5F0E8</color>
     <color name="ink">#1F1E1D</color>
+    <!-- Window / system bar color; overridden in values-night. -->
+    <color name="window_bg">#F5F0E8</color>
 </resources>

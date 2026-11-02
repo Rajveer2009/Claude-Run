@@ -57,6 +57,43 @@ public class GameViewRenderTest {
         assertTrue(new File(out + "/4_game_over.png").length() > 0);
     }
 
+    /** With the phone in dark mode the game should start (and stay) dark. */
+    @Test
+    @Config(qualifiers = "night")
+    public void followsSystemDarkMode() throws Exception {
+        GameView v = new GameView(RuntimeEnvironment.getApplication());
+        v.measure(W, H);
+        v.layout(0, 0, W, H);
+        Bitmap bmp = Bitmap.createBitmap(W, H, Bitmap.Config.ARGB_8888);
+        Canvas c = new Canvas(bmp);
+        String out = System.getProperty("renderDir", "build/renders");
+        new File(out).mkdirs();
+
+        step(v, c, 30);
+        save(bmp, out + "/5_dark_title.png");
+        assertTrue("background should be dark", luminance(bmp.getPixel(5, H / 2)) < 0.2f);
+
+        tap(v, W * 0.8f, MotionEvent.ACTION_DOWN);
+        tap(v, W * 0.8f, MotionEvent.ACTION_UP);
+        step(v, c, 90);
+        save(bmp, out + "/6_dark_running.png");
+        assertTrue("stays dark while playing", luminance(bmp.getPixel(5, H / 2)) < 0.2f);
+
+        // Switching the phone back to light mode mid-game fades the palette back to light.
+        android.content.res.Configuration light =
+                new android.content.res.Configuration(v.getResources().getConfiguration());
+        light.uiMode = (light.uiMode & ~android.content.res.Configuration.UI_MODE_NIGHT_MASK)
+                | android.content.res.Configuration.UI_MODE_NIGHT_NO;
+        v.dispatchConfigurationChanged(light);
+        step(v, c, 120);
+        assertTrue("turns light again", luminance(bmp.getPixel(5, H / 2)) > 0.8f);
+    }
+
+    private static float luminance(int argb) {
+        return (0.299f * ((argb >> 16) & 0xFF) + 0.587f * ((argb >> 8) & 0xFF)
+                + 0.114f * (argb & 0xFF)) / 255f;
+    }
+
     private static void step(GameView v, Canvas c, int n) throws Exception {
         for (int i = 0; i < n; i++) {
             Thread.sleep(16);

@@ -4,10 +4,15 @@ A small endless-runner Android game starring Claude's orange spark. Jump over bu
 error terminals, duck under `429` rate-limit clouds, and collect tokens for bonus points.
 The world speeds up as you go, and day turns to night every 700 points.
 
+**Dark mode:** the game follows your phone's system theme. With dark mode on, it plays
+in the dark palette the whole time; switch the setting while playing and the colors fade
+over without interrupting your run.
+
 | Title | Running |
 |---|---|
 | ![title](docs/1_title.png) | ![running](docs/2_running.png) |
 | ![jump](docs/3_jump.png) | ![game over](docs/4_game_over.png) |
+| ![dark title](docs/5_dark_title.png) | ![dark running](docs/6_dark_running.png) |
 
 ## Controls
 

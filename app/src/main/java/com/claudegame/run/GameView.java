@@ -2,6 +2,7 @@ package com.claudegame.run;
 
 import android.content.Context;
 import android.content.SharedPreferences;
+import android.content.res.Configuration;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
@@ -96,6 +97,8 @@ public class GameView extends View {
     private int lastMilestone;
     private long lastFrameNs;
     private boolean hostActive = true;
+    /** True while the phone's system-wide dark theme is on. */
+    private boolean systemDark;
 
     private final SharedPreferences prefs;
 
@@ -125,6 +128,8 @@ public class GameView extends View {
         setFocusableInTouchMode(true);
         prefs = context.getSharedPreferences("claude_run", Context.MODE_PRIVATE);
         hiScore = prefs.getInt("hi", 0);
+        systemDark = isDark(context.getResources().getConfiguration());
+        nightT = systemDark ? 1f : 0f; // start in the right palette, no fade on launch
 
         stroke.setStyle(Paint.Style.STROKE);
         stroke.setStrokeCap(Paint.Cap.ROUND);
@@ -145,6 +150,18 @@ public class GameView extends View {
         playerX = Math.max(W * 0.14f, 16 * u);
         decos.clear();
         for (int i = 0; i < 9; i++) decos.add(makeDeco(rnd.nextFloat() * W));
+    }
+
+    @Override
+    protected void onConfigurationChanged(Configuration newConfig) {
+        super.onConfigurationChanged(newConfig);
+        // Fires when the user flips dark mode while the game is open; the palette fades over.
+        systemDark = isDark(newConfig);
+        invalidate();
+    }
+
+    private static boolean isDark(Configuration c) {
+        return (c.uiMode & Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES;
     }
 
     void onHostPause() {
@@ -304,8 +321,10 @@ public class GameView extends View {
         if (bannerTime > 0) bannerTime -= dt;
         if (flashTime > 0) flashTime -= dt;
 
-        float night = (state == State.RUNNING || state == State.OVER)
-                && (score / NIGHT_EVERY) % 2 == 1 ? 1f : 0f;
+        // Dark system theme keeps the game dark; otherwise day and night alternate with score.
+        boolean cycleNight = (state == State.RUNNING || state == State.OVER)
+                && (score / NIGHT_EVERY) % 2 == 1;
+        float night = systemDark || cycleNight ? 1f : 0f;
         nightT += (night - nightT) * Math.min(1f, dt * 1.5f);
 
         updateParticles(dt);
