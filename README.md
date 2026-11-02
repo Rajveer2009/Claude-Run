@@ -14,12 +14,21 @@ over without interrupting your run.
 | ![jump](docs/3_jump.png) | ![game over](docs/4_game_over.png) |
 | ![dark title](docs/5_dark_title.png) | ![dark running](docs/6_dark_running.png) |
 
+**Sound:** soft synth effects for jumping, ducking, collecting tokens (quick pickups chime
+higher and higher), milestones, crashing and starting a run. Mute with the speaker button
+in the bottom-right corner of the title, pause and game over screens (or press `M`); the
+choice is remembered. The phone's volume buttons control the game volume.
+
+**Full screen:** the game hides the status and navigation bars and draws behind the camera
+notch / punch hole, while keeping the score and token counter clear of it.
+
 ## Controls
 
 | Action | Touch | Keyboard |
 |---|---|---|
 | Jump (hold for a higher jump) | Tap / hold the right side of the screen | Space, ↑, W |
 | Duck / fast-fall | Hold the left side, or swipe down | ↓, S |
+| Mute / unmute | Speaker button (menus only) | M |
 
 ## Get the APK
 
@@ -41,6 +50,9 @@ Or just open the folder in Android Studio and press Run.
 - `app/src/main/java/com/claudegame/run/GameView.java` — the whole game: physics,
   spawning, collisions and Canvas rendering (no image assets).
 - `app/src/main/java/com/claudegame/run/MainActivity.java` — fullscreen landscape host.
+- `app/src/main/java/com/claudegame/run/Sfx.java` — SoundPool wrapper for the effects.
+- `tools/gen_sounds.py` — synthesizes the effects into `app/src/main/res/raw/`
+  (`python3 tools/gen_sounds.py`); no third-party audio.
 - `app/src/test/.../GameViewRenderTest.java` — headless Robolectric test that plays the
   game and renders frames to `app/build/renders/` (`./gradlew testDebugUnitTest`).
 

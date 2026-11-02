@@ -1,8 +1,11 @@
 package com.claudegame.run;
 
 import android.app.Activity;
+import android.media.AudioManager;
+import android.os.Build;
 import android.os.Bundle;
 import android.view.View;
+import android.view.Window;
 import android.view.WindowInsets;
 import android.view.WindowInsetsController;
 import android.view.WindowManager;
@@ -14,10 +17,29 @@ public class MainActivity extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        Window window = getWindow();
+        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+
+        // Draw edge to edge, including the strip beside a camera notch / punch hole.
+        // Without this Android letterboxes that strip, leaving an empty bar.
+        if (Build.VERSION.SDK_INT >= 28) {
+            WindowManager.LayoutParams lp = window.getAttributes();
+            lp.layoutInDisplayCutoutMode = Build.VERSION.SDK_INT >= 30
+                    ? WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS
+                    : WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES;
+            window.setAttributes(lp);
+        }
+        if (Build.VERSION.SDK_INT >= 30) {
+            window.setDecorFitsSystemWindows(false);
+        }
+
+        // Volume buttons control the game's sound effects.
+        setVolumeControlStream(AudioManager.STREAM_MUSIC);
+
         gameView = new GameView(this);
         setContentView(gameView);
         gameView.requestFocus();
+        hideSystemBars();
     }
 
     @Override
@@ -28,10 +50,10 @@ public class MainActivity extends Activity {
 
     @SuppressWarnings("deprecation")
     private void hideSystemBars() {
-        if (android.os.Build.VERSION.SDK_INT >= 30) {
+        if (Build.VERSION.SDK_INT >= 30) {
             WindowInsetsController c = getWindow().getInsetsController();
             if (c != null) {
-                c.hide(WindowInsets.Type.systemBars());
+                c.hide(WindowInsets.Type.statusBars() | WindowInsets.Type.navigationBars());
                 c.setSystemBarsBehavior(WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE);
             }
         } else {
@@ -54,6 +76,13 @@ public class MainActivity extends Activity {
     @Override
     protected void onResume() {
         super.onResume();
+        hideSystemBars();
         gameView.onHostResume();
+    }
+
+    @Override
+    protected void onDestroy() {
+        gameView.release();
+        super.onDestroy();
     }
 }

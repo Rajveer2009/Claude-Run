@@ -9,10 +9,13 @@ import android.graphics.Paint;
 import android.graphics.Path;
 import android.graphics.RectF;
 import android.graphics.Typeface;
+import android.os.Build;
+import android.view.DisplayCutout;
 import android.view.HapticFeedbackConstants;
 import android.view.KeyEvent;
 import android.view.MotionEvent;
 import android.view.View;
+import android.view.WindowInsets;
 
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -119,6 +122,12 @@ public class GameView extends View {
     private boolean hostActive = true;
     /** True while the phone's system-wide dark theme is on. */
     private boolean systemDark;
+    private final Sfx sfx;
+    /** Areas covered by a camera notch / punch hole; the HUD and player stay clear of them. */
+    private float safeL, safeR, safeT;
+    private final RectF muteBtn = new RectF();
+    private int tokenStreak;
+    private float sinceToken = 99f;
 
     private final SharedPreferences prefs;
 
@@ -150,6 +159,7 @@ public class GameView extends View {
         hiScore = prefs.getInt("hi", 0);
         systemDark = isDark(context.getResources().getConfiguration());
         nightT = systemDark ? 1f : 0f; // start in the right palette, no fade on launch
+        sfx = new Sfx(context, prefs.getBoolean("muted", false));
 
         stroke.setStyle(Paint.Style.STROKE);
         stroke.setStrokeCap(Paint.Cap.ROUND);
@@ -167,9 +177,49 @@ public class GameView extends View {
         H = h;
         u = H / 100f;
         groundY = H * 0.80f;
-        playerX = Math.max(W * 0.14f, 16 * u);
+        layoutPlayer();
         decos.clear();
         for (int i = 0; i < 9; i++) decos.add(makeDeco(rnd.nextFloat() * W));
+    }
+
+    private void layoutPlayer() {
+        playerX = Math.max(Math.max(W * 0.14f, 16 * u), safeL + 12 * u);
+    }
+
+    @Override
+    public WindowInsets onApplyWindowInsets(WindowInsets insets) {
+        safeL = safeR = safeT = 0;
+        if (Build.VERSION.SDK_INT >= 28) {
+            DisplayCutout cut = insets.getDisplayCutout();
+            if (cut != null) {
+                safeL = cut.getSafeInsetLeft();
+                safeR = cut.getSafeInsetRight();
+                safeT = cut.getSafeInsetTop();
+            }
+        }
+        if (u > 0) layoutPlayer();
+        return super.onApplyWindowInsets(insets);
+    }
+
+    /** Called by the activity when it is destroyed. */
+    void release() {
+        sfx.release();
+    }
+
+    Sfx sfx() {
+        return sfx;
+    }
+
+    private void toggleMute() {
+        sfx.setMuted(!sfx.isMuted());
+        prefs.edit().putBoolean("muted", sfx.isMuted()).apply();
+        if (!sfx.isMuted()) sfx.play(Sfx.TOKEN);
+        invalidate();
+    }
+
+    private void startDuck() {
+        if (!duckHeld && state == State.RUNNING) sfx.play(Sfx.DUCK);
+        duckHeld = true;
     }
 
     @Override
@@ -212,7 +262,9 @@ public class GameView extends View {
         banner = null;
         jumpHeld = duckHeld = false;
         jumpPointer = duckPointer = -1;
+        tokenStreak = 0;
         state = State.RUNNING;
+        sfx.play(Sfx.START);
     }
 
     // ================================================================ input
@@ -227,6 +279,10 @@ public class GameView extends View {
             case MotionEvent.ACTION_DOWN:
             case MotionEvent.ACTION_POINTER_DOWN: {
                 float x = e.getX(idx);
+                if (state != State.RUNNING && muteBtn.contains(x, e.getY(idx))) {
+                    toggleMute();
+                    return true;
+                }
                 if (state == State.READY || state == State.PAUSED) {
                     if (state == State.READY) resetGame(); else state = State.RUNNING;
                     lastFrameNs = 0;
@@ -240,7 +296,7 @@ public class GameView extends View {
                 // Left side of the screen ducks, everything else jumps.
                 if (x < W * 0.4f) {
                     duckPointer = id;
-                    duckHeld = true;
+                    startDuck();
                 } else {
                     jumpPointer = id;
                     downY = e.getY(idx);
@@ -254,7 +310,7 @@ public class GameView extends View {
                     // Swipe down on the jump side = fast fall + duck.
                     if (pi >= 0 && e.getY(pi) - downY > 8 * u) {
                         jumpHeld = false;
-                        duckHeld = true;
+                        startDuck();
                         duckPointer = jumpPointer;
                         jumpPointer = -1;
                     }
@@ -299,7 +355,10 @@ public class GameView extends View {
                 return true;
             case KeyEvent.KEYCODE_DPAD_DOWN:
             case KeyEvent.KEYCODE_S:
-                duckHeld = true;
+                startDuck();
+                return true;
+            case KeyEvent.KEYCODE_M:
+                toggleMute();
                 return true;
         }
         return super.onKeyDown(keyCode, event);
@@ -329,6 +388,7 @@ public class GameView extends View {
             vy = JUMP_VELOCITY;
             lift = 0.01f;
             puff(playerX, groundY, 5, FG[0]);
+            sfx.play(Sfx.JUMP);
         }
     }
 
@@ -339,6 +399,7 @@ public class GameView extends View {
         blinkTimer -= dt;
         if (blinkTimer < -0.14f) blinkTimer = 2f + rnd.nextFloat() * 3f;
         if (bannerTime > 0) bannerTime -= dt;
+        sinceToken += dt;
         if (flashTime > 0) flashTime -= dt;
 
         // Dark system theme keeps the game dark; otherwise day and night alternate with score.
@@ -372,6 +433,7 @@ public class GameView extends View {
         if (milestone > lastMilestone) {
             lastMilestone = milestone;
             showBanner(milestone % 2 == 0 ? "Thinking faster..." : "Extended thinking!");
+            sfx.play(Sfx.LEVEL);
             flashTime = 0.6f;
         }
 
@@ -424,6 +486,10 @@ public class GameView extends View {
                 tokenCount++;
                 bonus += 10;
                 puff(t.x, ty, 8, ORANGE);
+                // tokens grabbed in quick succession chime higher and higher
+                tokenStreak = sinceToken < 0.9f ? Math.min(tokenStreak + 1, 6) : 0;
+                sinceToken = 0f;
+                sfx.play(Sfx.TOKEN, (float) Math.pow(2, tokenStreak / 12.0 * 2));
             }
         }
         RectF ob = new RectF();
@@ -464,6 +530,7 @@ public class GameView extends View {
             prefs.edit().putInt("hi", hiScore).apply();
         }
         performHapticFeedback(HapticFeedbackConstants.LONG_PRESS);
+        sfx.play(Sfx.CRASH);
     }
 
     private void showBanner(String s) {
@@ -909,22 +976,33 @@ public class GameView extends View {
 
     private void drawHud(Canvas c, int fg, int bg) {
         float pad = 4 * u;
+        // keep HUD clear of a camera notch / punch hole
+        float padL = Math.max(pad, safeL + 2 * u);
+        float padR = Math.max(pad, safeR + 2 * u);
+        float padT = Math.max(pad, safeT + 1 * u);
         text.setTextSize(4.2f * u);
         text.setTextAlign(Paint.Align.RIGHT);
         text.setColor(fg);
         String s = pad5(score);
-        c.drawText(s, W - pad, pad + 4 * u, text);
+        c.drawText(s, W - padR, padT + 4 * u, text);
         float sw = text.measureText(s);
         text.setColor(lerpColor(0xFF9B9382, 0xFF8A8478, nightT));
-        c.drawText("HI " + pad5(hiScore) + "  ", W - pad - sw, pad + 4 * u, text);
+        c.drawText("HI " + pad5(hiScore) + "  ", W - padR - sw, padT + 4 * u, text);
 
         if (state != State.READY) {
             // token counter
             fill.setColor(ORANGE);
-            c.drawCircle(pad + 2 * u, pad + 2.6f * u, 2 * u, fill);
+            c.drawCircle(padL + 2 * u, padT + 2.6f * u, 2 * u, fill);
             text.setTextAlign(Paint.Align.LEFT);
             text.setColor(fg);
-            c.drawText("x " + tokenCount, pad + 5.5f * u, pad + 4 * u, text);
+            c.drawText("x " + tokenCount, padL + 5.5f * u, padT + 4 * u, text);
+        }
+
+        // mute toggle, only on menus so it can't be hit by accident mid-run
+        if (state != State.RUNNING) {
+            drawMuteButton(c, fg, W - padR - 5 * u, groundY + 10 * u);
+        } else {
+            muteBtn.setEmpty();
         }
 
         if (banner != null && bannerTime > 0 && state == State.RUNNING) {
@@ -973,6 +1051,38 @@ public class GameView extends View {
                 break;
             default:
                 break;
+        }
+    }
+
+    private void drawMuteButton(Canvas c, int fg, float cx, float cy) {
+        float r = 4.5f * u;
+        muteBtn.set(cx - r * 1.6f, cy - r * 1.6f, cx + r * 1.6f, cy + r * 1.6f); // generous hit area
+        stroke.setColor(lerpColor(fg, mix(BG), 0.5f));
+        stroke.setStrokeWidth(0.4f * u);
+        c.drawCircle(cx, cy, r, stroke);
+        // speaker
+        fill.setColor(fg);
+        path.reset();
+        float x0 = cx - 2.4f * u;
+        path.moveTo(x0, cy - 0.9f * u);
+        path.lineTo(x0 + 1.1f * u, cy - 0.9f * u);
+        path.lineTo(x0 + 2.6f * u, cy - 2.2f * u);
+        path.lineTo(x0 + 2.6f * u, cy + 2.2f * u);
+        path.lineTo(x0 + 1.1f * u, cy + 0.9f * u);
+        path.lineTo(x0, cy + 0.9f * u);
+        path.close();
+        c.drawPath(path, fill);
+        stroke.setColor(fg);
+        stroke.setStrokeWidth(0.45f * u);
+        if (sfx.isMuted()) {
+            float m = 0.9f * u, mx = cx + 1.6f * u;
+            c.drawLine(mx - m, cy - m, mx + m, cy + m, stroke);
+            c.drawLine(mx - m, cy + m, mx + m, cy - m, stroke);
+        } else {
+            rect.set(cx - 0.6f * u, cy - 1.4f * u, cx + 1.4f * u, cy + 1.4f * u);
+            c.drawArc(rect, -50, 100, false, stroke);
+            rect.set(cx - 1.4f * u, cy - 2.5f * u, cx + 2.6f * u, cy + 2.5f * u);
+            c.drawArc(rect, -50, 100, false, stroke);
         }
     }
 
