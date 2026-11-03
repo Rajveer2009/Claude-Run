@@ -1,13 +1,23 @@
 name: Build APK
 
+# Every push and pull request builds the APK (downloadable as a workflow artifact).
+# On the default branch (main), a new GitHub Release is published automatically whenever
+# versionName in app/build.gradle changes: tag v<versionName>, with the APK attached.
+# To ship a new release, bump versionCode and versionName and push to main.
+
 on:
   push:
   pull_request:
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   build:
     runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.name }}
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-java@v5
@@ -17,9 +27,58 @@ jobs:
           cache: gradle
       # The Android SDK comes preinstalled on GitHub's Ubuntu runners (ANDROID_HOME is set),
       # and Gradle installs any missing SDK packages itself, so no setup-android step is needed.
-      - name: Build debug APK
-        run: ./gradlew assembleDebug --no-daemon
+      - name: Build release APK
+        run: ./gradlew assembleRelease --no-daemon
+      - name: Name APK after the version
+        id: version
+        run: |
+          name=$(sed -n "s/^ *versionName '\(.*\)'.*/\1/p" app/build.gradle)
+          if [ -z "$name" ]; then echo "::error::versionName not found in app/build.gradle"; exit 1; fi
+          echo "name=$name" >> "$GITHUB_OUTPUT"
+          cp app/build/outputs/apk/release/app-release.apk "ClaudeRun-v$name.apk"
       - uses: actions/upload-artifact@v4
         with:
           name: claude-run-apk
-          path: app/build/outputs/apk/debug/app-debug.apk
+          path: ClaudeRun-v*.apk
+
+  release:
+    needs: build
+    if: github.event_name != 'pull_request' && github.ref_name == github.event.repository.default_branch
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write   # create the tag and release
+    concurrency:
+      group: release
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0   # full history and tags, for the release notes
+      - uses: actions/download-artifact@v4
+        with:
+          name: claude-run-apk
+      - name: Publish release (skipped if this version was already released)
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.build.outputs.version }}
+        run: |
+          tag="v$VERSION"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            echo "::notice::Release $tag already exists. Bump versionCode and versionName in app/build.gradle to publish a new one."
+            exit 0
+          fi
+          prev=$(git tag --list 'v*' --sort=-v:refname | head -n 1)
+          {
+            echo "Download **ClaudeRun-v$VERSION.apk** below and open it on your Android phone (Android 8.0 or newer)."
+            echo "It installs over any earlier Claude Run release and keeps your high score."
+            echo
+            echo "### Changes"
+            if [ -n "$prev" ]; then
+              git log --no-merges --format='- %s' "$prev..$GITHUB_SHA"
+            else
+              git log --no-merges --format='- %s' "$GITHUB_SHA"
+            fi
+          } > notes.md
+          gh release create "$tag" "ClaudeRun-v$VERSION.apk" \
+            --target "$GITHUB_SHA" \
+            --title "Claude Run $VERSION" \
+            --notes-file notes.md
