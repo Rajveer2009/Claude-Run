@@ -36,9 +36,21 @@ notch / punch hole, while keeping the score and token counter clear of it.
 
 ## Get the APK
 
-- **From GitHub:** every push runs the *Build APK* workflow. Open the run in the
-  **Actions** tab and download the `claude-run-apk` artifact, unzip it, and install
-  `app-debug.apk` on your phone (allow "install unknown apps").
+- **Releases (easiest):** open the repo's **Releases** page and download
+  `ClaudeRun-v<version>.apk` from the latest release, then open it on your phone (allow
+  "install unknown apps"). Each release installs over the previous one and keeps your
+  high score.
+- **Any build:** every push and pull request runs the *Build APK* workflow; open the run
+  in the **Actions** tab and download the `claude-run-apk` artifact.
+
+### Publishing a release
+
+Releases are automatic. When a push to `main` changes `versionName` in `app/build.gradle`,
+the workflow builds the APK and publishes a release tagged `v<versionName>` with the APK
+attached and the commits since the last release as notes. So to ship a new version, bump
+`versionCode` and `versionName` and push to `main`. Pushes that don't change the version
+just build. All APKs are signed with `app/debug.keystore`, which is committed so local
+and CI builds share one signature (fine for sideloading; not meant for the Play Store).
 - **Build locally:** with the Android SDK installed (or Android Studio), run
 
   ```sh
